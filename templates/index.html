@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Detector de Phishing</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .card { background: white; border-radius: 16px; padding: 40px; width: 100%; max-width: 520px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    h1 { font-size: 22px; font-weight: 700; color: #1a1a1a; text-align: center; margin-bottom: 6px; }
+    .sub { text-align: center; color: #888; font-size: 14px; margin-bottom: 28px; }
+    .url-wrap { display: flex; gap: 8px; margin-bottom: 20px; }
+    .url-wrap input { flex: 1; padding: 12px 14px; border: 1.5px solid #e0e0e0; border-radius: 10px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+    .url-wrap input:focus { border-color: #1a1a1a; }
+    .btn-analizar { background: #1a1a1a; color: white; border: none; border-radius: 10px; padding: 12px 20px; font-size: 14px; cursor: pointer; white-space: nowrap; }
+    .btn-analizar:hover { opacity: 0.85; }
+    .bar-track { height: 8px; background: #f0f0f0; border-radius: 4px; margin-bottom: 8px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s, background 0.4s; width: 0%; }
+    .nivel { font-size: 15px; font-weight: 700; color: #aaa; margin-bottom: 16px; }
+    .metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
+    .metric { background: #f8f8f8; border-radius: 10px; padding: 10px 12px; }
+    .metric-label { font-size: 11px; color: #aaa; margin-bottom: 4px; }
+    .metric-value { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+    .señales-titulo { font-size: 12px; color: #aaa; margin-bottom: 8px; }
+    .señales { font-size: 13px; color: #bbb; line-height: 1.8; min-height: 24px; margin-bottom: 12px; }
+    .señales.peligro { color: #e74c3c; }
+    .señales.seguro  { color: #27ae60; }
+    .vt { font-size: 13px; color: #888; min-height: 20px; }
+    .vt.peligro { color: #e74c3c; }
+    .vt.seguro  { color: #27ae60; }
+    .loading { text-align: center; color: #aaa; font-size: 13px; padding: 12px 0; display: none; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>Detector de Phishing</h1>
+  <p class="sub">Pega una URL para analizarla</p>
+
+  <div class="url-wrap">
+    <input type="text" id="url" placeholder="https://ejemplo.com/ruta"
+           onkeydown="if(event.key==='Enter') analizar()"/>
+    <button class="btn-analizar" onclick="analizar()">Analizar</button>
+  </div>
+
+  <div class="bar-track"><div class="bar-fill" id="bar"></div></div>
+  <div class="nivel" id="nivel">—</div>
+
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">Dominio</div><div class="metric-value" id="m-dominio" style="font-size:12px">—</div></div>
+    <div class="metric"><div class="metric-label">HTTPS</div><div class="metric-value" id="m-https">—</div></div>
+    <div class="metric"><div class="metric-label">Score</div><div class="metric-value" id="m-score">—</div></div>
+  </div>
+
+  <div class="señales-titulo">Señales detectadas</div>
+  <div class="señales" id="señales">Ingresa una URL para analizar.</div>
+  <div class="loading" id="loading">Consultando VirusTotal...</div>
+  <div class="vt" id="vt"></div>
+</div>
+
+<script>
+async function analizar() {
+  const url = document.getElementById("url").value.trim();
+  if (!url) return;
+
+  document.getElementById("nivel").textContent = "Analizando...";
+  document.getElementById("nivel").style.color = "#aaa";
+  document.getElementById("señales").textContent = "";
+  document.getElementById("señales").className = "señales";
+  document.getElementById("vt").textContent = "";
+  document.getElementById("loading").style.display = "block";
+  document.getElementById("bar").style.width = "0%";
+
+  const res = await fetch("/analizar", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({url})
+  });
+  const data = await res.json();
+  const r = data.resultado;
+  const apis = data.apis;
+
+  document.getElementById("loading").style.display = "none";
+
+  const colores = {
+    "SEGURO":      "#27ae60",
+    "BAJO RIESGO": "#27ae60",
+    "SOSPECHOSO":  "#f39c12",
+    "PELIGROSO":   "#e74c3c"
+  };
+  const pcts = {
+    "SEGURO": 5, "BAJO RIESGO": 25, "SOSPECHOSO": 60, "PELIGROSO": 100
+  };
+
+  const bar = document.getElementById("bar");
+  bar.style.width = pcts[r.nivel] + "%";
+  bar.style.background = colores[r.nivel];
+
+  document.getElementById("nivel").textContent = r.nivel;
+  document.getElementById("nivel").style.color = colores[r.nivel];
+  document.getElementById("m-dominio").textContent = r.dominio;
+  document.getElementById("m-https").textContent = r.usa_https ? "Sí" : "No";
+  document.getElementById("m-https").style.color = r.usa_https ? "#27ae60" : "#e74c3c";
+  document.getElementById("m-score").textContent = r.score + "/100";
+
+  const señalesEl = document.getElementById("señales");
+  if (r["señales"] && r["señales"].length > 0) {
+    señalesEl.innerHTML = r["señales"].map(s => `!! ${s}`).join("<br>");
+    señalesEl.className = "señales peligro";
+  } else {
+    señalesEl.textContent = "No se detectaron señales sospechosas.";
+    señalesEl.className = "señales seguro";
+  }
+
+  const vt = apis.virustotal;
+  const vtEl = document.getElementById("vt");
+  if (!vt.disponible) {
+    vtEl.textContent = `VirusTotal: No disponible (${vt.razon})`;
+    vtEl.className = "vt";
+  } else if (vt.limpia) {
+    vtEl.textContent = `VirusTotal: Limpia — 0/${vt.total} motores`;
+    vtEl.className = "vt seguro";
+  } else {
+    vtEl.textContent = `VirusTotal: DETECTADA — ${vt.maliciosas} maliciosa(s), ${vt.sospechosas} sospechosa(s)`;
+    vtEl.className = "vt peligro";
+  }
+}
+</script>
+</body>
+</html>
