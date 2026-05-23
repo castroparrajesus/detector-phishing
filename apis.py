@@ -1,7 +1,8 @@
 import requests
 import base64
 
-VIRUSTOTAL_API_KEY = "tu-key-aqui"
+import os
+VIRUSTOTAL_API_KEY = os.environ.get("VIRUSTOTAL_API_KEY", "")
 
 def verificar_virustotal(url):
     if not VIRUSTOTAL_API_KEY:
